@@ -3,16 +3,16 @@
   "name": "Konnwei BK300 Battery Monitor",
   "version": "1.0.0",
   "config_flow": true,
-  "dependencies": ["bluetooth"],
+  "dependencies": ["bluetooth_adapters","device_tracker"],
   "requirements": [],
   "bluetooth": [
     {
-      "service_uuid": "0000fff0-0000-1000-8000-00805f9b34fb",
-      "connectable": true
+      "connectable": true,
+      "service_uuid": "0000fff0-0000-1000-8000-00805f9b34fb"
     },
     {
-      "manufacturer_id": 179,
-      "connectable": true
+      "connectable": true,
+      "manufacturer_id": 179
     }
   ],
   "codeowners": ["@hucknz"],
