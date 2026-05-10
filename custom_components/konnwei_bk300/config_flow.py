@@ -279,15 +279,22 @@ class BK300ConfigFlow(ConfigFlow, domain=DOMAIN):
             len(all_devices),
         )
 
-        # If exactly one BK300 found, auto-select it
+        # If exactly one BK300 found, auto-confirm it
         if len(bk300_devices) == 1 and user_input is None:
             auto_address = next(iter(bk300_devices))
+            auto_name = bk300_devices[auto_address]
             _LOGGER.info("Exactly one BK300 found, auto-selecting: %s", auto_address)
-            self._address = auto_address
-            return await self.async_step_device_confirmation(
-                device_address=auto_address,
-                device_name=bk300_devices[auto_address].replace("⭐ ", ""),
-                auto_selected=True,
+            
+            await self.async_set_unique_id(auto_address)
+            self._abort_if_unique_id_configured()
+            
+            # Auto-create entry for the single found device
+            return self.async_create_entry(
+                title=auto_name,
+                data={
+                    CONF_ADDRESS: auto_address,
+                    CONF_POLL_INTERVAL: DEFAULT_POLL_INTERVAL,
+                },
             )
 
         # Handle user input from device selection
@@ -319,8 +326,6 @@ class BK300ConfigFlow(ConfigFlow, domain=DOMAIN):
                 data_schema=vol.Schema({}),
                 errors={"base": "no_devices_found"},
                 description_placeholders={
-                    "discovered_count": "0",
-                    "total_count": "0",
                     "info": "No Bluetooth devices detected. Ensure your BK300 is powered on and within range.",
                 },
             )
@@ -355,55 +360,6 @@ class BK300ConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
             errors=errors,
             description_placeholders={
-                "discovered_count": str(len(bk300_devices)),
-                "total_count": str(len(ordered)),
-                "info": description,
-            },
-        )
-
-    async def async_step_device_confirmation(
-        self,
-        device_address: str,
-        device_name: str,
-        auto_selected: bool = False,
-        user_input: dict[str, Any] | None = None,
-    ) -> ConfigFlowResult:
-        """Confirmation step for auto-selected or manually selected device."""
-        if user_input is not None:
-            await self.async_set_unique_id(device_address)
-            self._abort_if_unique_id_configured()
-
-            _LOGGER.info("Creating config entry for device: %s", device_name)
-            return self.async_create_entry(
-                title=device_name,
-                data={
-                    CONF_ADDRESS: device_address,
-                    CONF_POLL_INTERVAL: user_input.get(
-                        CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL
-                    ),
-                },
-            )
-
-        # Show confirmation form
-        description = (
-            f"Auto-detected: {device_name}" if auto_selected
-            else f"Selected: {device_name}"
-        )
-
-        return self.async_show_form(
-            step_id="device_confirmation",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_POLL_INTERVAL, default=DEFAULT_POLL_INTERVAL
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(min=MIN_POLL_INTERVAL, max=MAX_POLL_INTERVAL),
-                    ),
-                }
-            ),
-            description_placeholders={
-                "address": device_address,
                 "info": description,
             },
         )

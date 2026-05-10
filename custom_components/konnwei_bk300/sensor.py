@@ -16,7 +16,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_ADDRESS, DOMAIN, MANUFACTURER, MODEL
-from .coordinator import BK300Coordinator
+from .coordinator import BK300Coordinator, BK300Data
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,8 +64,10 @@ class BK300VoltageSensor(CoordinatorEntity[BK300Coordinator], SensorEntity):
     @property
     def native_value(self) -> float | None:
         """Return current voltage, falling back to last known value."""
-        if self.coordinator.data and self.coordinator.data.voltage is not None:
-            return self.coordinator.data.voltage
+        if self.coordinator.data and self.coordinator.data.reading:
+            if self.coordinator.data.reading.voltage is not None:
+                return self.coordinator.data.reading.voltage
+        
         # Fall back to persisted last known value
         return self.coordinator.last_known_voltage
 
@@ -78,9 +80,13 @@ class BK300VoltageSensor(CoordinatorEntity[BK300Coordinator], SensorEntity):
     def extra_state_attributes(self) -> dict:
         """Return extra state attributes."""
         attrs: dict = {"mac_address": self._address}
-        if self.coordinator.data:
-            if self.coordinator.data.battery_percent is not None:
-                attrs["battery_percent"] = self.coordinator.data.battery_percent
-            if self.coordinator.data.charging is not None:
-                attrs["charging"] = self.coordinator.data.charging
+        
+        if self.coordinator.data and self.coordinator.data.reading:
+            reading = self.coordinator.data.reading
+            if reading.battery_percent is not None:
+                attrs["battery_percent"] = reading.battery_percent
+            if reading.charging is not None:
+                attrs["charging"] = reading.charging
+        
         return attrs
+

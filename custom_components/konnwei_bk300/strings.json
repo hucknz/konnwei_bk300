@@ -13,16 +13,6 @@
           "poll_interval": "How often to connect and read voltage (1-60 minutes)"
         }
       },
-      "device_confirmation": {
-        "title": "Confirm BK300 Battery Monitor",
-        "description": "{info} ({address})",
-        "data": {
-          "poll_interval": "Poll Interval (minutes)"
-        },
-        "data_description": {
-          "poll_interval": "How often to connect and read voltage (1-60 minutes)"
-        }
-      },
       "bluetooth_confirm": {
         "title": "Found BK300 Battery Monitor",
         "description": "Do you want to set up the BK300 at {address}?",
