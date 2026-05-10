@@ -6,22 +6,19 @@ from typing import Any
 
 import voluptuous as vol
 
+from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
     async_discovered_service_info,
-    async_last_service_info,
-    async_scanner_count,
 )
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
-import homeassistant.helpers.config_validation as cv
 
 from .const import (
     CONF_ADDRESS,
     CONF_POLL_INTERVAL,
     DEFAULT_POLL_INTERVAL,
-    DEVICE_NAME,
     DOMAIN,
     MANUFACTURER_ID,
     MAX_POLL_INTERVAL,
@@ -32,15 +29,60 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-def _is_bk300(discovery: BluetoothServiceInfoBleak) -> bool:
+def _is_bk300(service_info: BluetoothServiceInfoBleak) -> bool:
     """Return True if this discovery looks like a BK300."""
-    # Match by service UUID (most reliable)
-    if SERVICE_UUID in [str(u).lower() for u in discovery.service_uuids]:
+    if SERVICE_UUID in [str(u).lower() for u in service_info.service_uuids]:
         return True
-    # Match by Clarinox manufacturer ID 0x00B3 = 179
-    if MANUFACTURER_ID in discovery.manufacturer_data:
+    if MANUFACTURER_ID in service_info.manufacturer_data:
         return True
     return False
+
+
+def _get_all_ble_devices(hass) -> dict[str, BluetoothServiceInfoBleak]:
+    """
+    Get all BLE devices visible to HA using every available API.
+
+    async_discovered_service_info only returns devices matched to an integration.
+    We also walk every active scanner's device cache to find unmatched devices.
+    """
+    seen: dict[str, BluetoothServiceInfoBleak] = {}
+
+    # Method 1: devices already matched to integrations (connectable + non-connectable)
+    for info in async_discovered_service_info(hass, connectable=False):
+        seen[info.address] = info
+
+    # Method 2: walk every active scanner's raw advertisement cache
+    try:
+        for scanner in bluetooth.async_current_scanners(hass):
+            try:
+                # discovered_devices_and_advertisement_data is a dict of
+                # {address: (BLEDevice, AdvertisementData)}
+                raw = getattr(
+                    scanner, "discovered_devices_and_advertisement_data", {}
+                )
+                for address, (ble_device, adv_data) in raw.items():
+                    if address not in seen:
+                        # Build a minimal BluetoothServiceInfoBleak-compatible object
+                        seen[address] = BluetoothServiceInfoBleak(
+                            name=adv_data.local_name or ble_device.name or "",
+                            address=address,
+                            rssi=adv_data.rssi or -100,
+                            manufacturer_data=adv_data.manufacturer_data or {},
+                            service_data=adv_data.service_data or {},
+                            service_uuids=adv_data.service_uuids or [],
+                            source=getattr(scanner, "source", ""),
+                            device=ble_device,
+                            advertisement=adv_data,
+                            connectable=True,
+                            time=0,
+                            tx_power=adv_data.tx_power,
+                        )
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Error reading scanner %s: %s", scanner, err)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("Error iterating scanners: %s", err)
+
+    return seen
 
 
 class BK300ConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -49,36 +91,21 @@ class BK300ConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     def __init__(self) -> None:
-        self._discovered_devices: dict[str, str] = {}
         self._address: str | None = None
 
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfoBleak
     ) -> ConfigFlowResult:
-        """Handle auto-discovery via Bluetooth.
-
-        HA calls this when a device matches any entry in manifest.json bluetooth list.
-        We do a secondary check to avoid false positives from name/manufacturer matches.
-        """
+        """Handle auto-discovery via Bluetooth."""
         await self.async_set_unique_id(discovery_info.address)
         self._abort_if_unique_id_configured()
 
-        # Secondary filter — if matched only by local_name, verify service UUID or mfr ID
-        service_match = SERVICE_UUID in [
-            str(u).lower() for u in discovery_info.service_uuids
-        ]
-        mfr_match = MANUFACTURER_ID in discovery_info.manufacturer_data
-        name_match = bool(
-            discovery_info.name
-            and DEVICE_NAME.lower() in discovery_info.name.lower()
-        )
-
-        if not (service_match or mfr_match or name_match):
+        if not _is_bk300(discovery_info):
             return self.async_abort(reason="not_supported")
 
         self._address = discovery_info.address
         self.context["title_placeholders"] = {
-            "name": discovery_info.name or DEVICE_NAME,
+            "name": discovery_info.name or "BK300",
             "address": discovery_info.address,
         }
 
@@ -113,7 +140,6 @@ class BK300ConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
             description_placeholders={
                 "address": self._address,
-                "name": DEVICE_NAME,
             },
         )
 
@@ -122,22 +148,26 @@ class BK300ConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Handle manual setup — shows dropdown of all visible BLE devices."""
         errors: dict[str, str] = {}
-
-        # Build dropdown of ALL visible BLE devices (not just BK300 matches)
-        # so the user can select any device even if auto-detection missed it
         current_addresses = self._async_current_ids()
+
+        # Gather all visible devices from all scanner sources
+        all_infos = _get_all_ble_devices(self.hass)
+
         all_devices: dict[str, str] = {}
         bk300_devices: dict[str, str] = {}
 
-        for discovery in async_discovered_service_info(self.hass, connectable=False):
-            if discovery.address in current_addresses:
+        for address, info in all_infos.items():
+            if address in current_addresses:
                 continue
-            label = f"{discovery.name or 'Unknown'} ({discovery.address})"
-            all_devices[discovery.address] = label
-            if _is_bk300(discovery):
-                bk300_devices[discovery.address] = label
+            name = info.name or "Unknown"
+            # Strip null bytes (BK300 pads its name with \x00)
+            name = name.replace("\x00", "").strip() or "Unknown"
+            label = f"{name} ({address})"
+            all_devices[address] = label
+            if _is_bk300(info):
+                bk300_devices[address] = label
 
-        # Put BK300 matches at the top, then everything else
+        # BK300 matches at top marked with ⭐, everything else below
         ordered: dict[str, str] = {}
         for addr, label in bk300_devices.items():
             ordered[addr] = f"⭐ {label}"
@@ -150,13 +180,9 @@ class BK300ConfigFlow(ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(address)
             self._abort_if_unique_id_configured()
 
-            # Use the device name from the dropdown if we have it
-            raw_label = all_devices.get(address, f"BK300 ({address})")
-            # Strip the ⭐ prefix if present
-            title = raw_label.replace("⭐ ", "")
-
+            name = all_devices.get(address, f"BK300 ({address})")
             return self.async_create_entry(
-                title=title,
+                title=name,
                 data={
                     CONF_ADDRESS: address,
                     CONF_POLL_INTERVAL: user_input.get(
@@ -166,36 +192,33 @@ class BK300ConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
         if not ordered:
-            # No BLE devices visible at all — show a helpful error
             return self.async_show_form(
                 step_id="user",
                 data_schema=vol.Schema({}),
                 errors={"base": "no_devices_found"},
-                description_placeholders={"discovered_count": "0"},
+                description_placeholders={
+                    "discovered_count": "0",
+                    "total_count": "0",
+                },
             )
-
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_ADDRESS): vol.In(ordered),
-                vol.Optional(
-                    CONF_POLL_INTERVAL, default=DEFAULT_POLL_INTERVAL
-                ): vol.All(
-                    vol.Coerce(int),
-                    vol.Range(min=MIN_POLL_INTERVAL, max=MAX_POLL_INTERVAL),
-                ),
-            }
-        )
-
-        bk300_count = len(bk300_devices)
-        total_count = len(ordered)
 
         return self.async_show_form(
             step_id="user",
-            data_schema=schema,
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_ADDRESS): vol.In(ordered),
+                    vol.Optional(
+                        CONF_POLL_INTERVAL, default=DEFAULT_POLL_INTERVAL
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(min=MIN_POLL_INTERVAL, max=MAX_POLL_INTERVAL),
+                    ),
+                }
+            ),
             errors=errors,
             description_placeholders={
-                "discovered_count": str(bk300_count),
-                "total_count": str(total_count),
+                "discovered_count": str(len(bk300_devices)),
+                "total_count": str(len(ordered)),
             },
         )
 
