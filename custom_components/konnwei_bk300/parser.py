@@ -30,8 +30,8 @@ def parse_notification(data: bytes) -> BK300Reading | None:
        24 24 [len_le2] [cmd] [subcmd] [payload...] [checksum_le2] 0D 0A
        Voltage packet (cmd=0x4B, sub=0x0B):
          payload[0:2] = voltage as uint16 LE / 100
-         payload[2]   = battery percentage
-         payload[3]   = flags (bit0 = charging)
+         payload[2]   = state code (0x02 = charging)
+         payload[3]   = unknown flags
 
     2. Raw 2-byte voltage:
        [voltage_le2] — uint16 LE / 100
@@ -56,11 +56,13 @@ def parse_notification(data: bytes) -> BK300Reading | None:
             reading = BK300Reading(voltage=voltage)
 
             if len(payload) >= 3:
-                pct = payload[2]
-                reading.battery_percent = pct if 0 <= pct <= 100 else None
+                # Byte 2 is a state code, not a percentage
+                # Observed: 0x02 = charging, others = not charging
+                state_code = payload[2]
+                reading.charging = state_code == 0x02
 
-            if len(payload) >= 4:
-                reading.charging = bool(payload[3] & 0x01)
+            # Battery percent meaning unconfirmed, omit for now
+            reading.battery_percent = None
 
             _LOGGER.debug(
                 "Parsed voltage=%.2fV pct=%s charging=%s",
