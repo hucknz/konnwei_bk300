@@ -1,0 +1,22 @@
+{
+  "domain": "konnwei_bk300",
+  "name": "Konnwei BK300 Battery Monitor",
+  "version": "1.0.0",
+  "config_flow": true,
+  "dependencies": ["bluetooth"],
+  "requirements": [],
+  "bluetooth": [
+    {
+      "service_uuid": "0000fff0-0000-1000-8000-00805f9b34fb",
+      "connectable": true
+    },
+    {
+      "manufacturer_id": 179,
+      "connectable": true
+    }
+  ],
+  "codeowners": ["@hucknz"],
+  "iot_class": "local_polling",
+  "documentation": "https://github.com/hucknz/konnwei_bk300",
+  "issue_tracker": "https://github.com/hucknz/konnwei_bk300/issues"
+}

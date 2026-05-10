@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Konnwei BK300 Battery Monitor",
+        "description": "Found {discovered_count} likely BK300 device(s) (marked ⭐) among {total_count} visible Bluetooth device(s). Select your Battery Monitor from the list.",
+        "data": {
+          "address": "Bluetooth Device",
+          "poll_interval": "Poll Interval (minutes)"
+        },
+        "data_description": {
+          "address": "Devices likely to be a BK300 are marked with ⭐",
+          "poll_interval": "How often to connect and read voltage (1-60 minutes)"
+        }
+      },
+      "bluetooth_confirm": {
+        "title": "Found BK300 Battery Monitor",
+        "description": "Do you want to set up the BK300 at {address}?",
+        "data": {
+          "poll_interval": "Poll Interval (minutes)"
+        },
+        "data_description": {
+          "poll_interval": "How often to connect and read voltage (1-60 minutes)"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Device is already configured",
+      "not_supported": "Device is not a supported BK300"
+    },
+    "error": {
+      "no_devices_found": "No Bluetooth devices found. Make sure your Bluetooth adapter or proxy is working and the battery monitor is powered on and in range."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "BK300 Options",
+        "data": {
+          "poll_interval": "Poll Interval (minutes)"
+        },
+        "data_description": {
+          "poll_interval": "How often to connect and read voltage (1-60 minutes)"
+        }
+      }
+    }
+  }
+}
