@@ -279,7 +279,15 @@ class BK300ConfigFlow(ConfigFlow, domain=DOMAIN):
             len(all_devices),
         )
 
-        # If exactly one BK300 found, auto-confirm it
+        # Build ordered device list for form (BK300s first with ⭐, then others)
+        ordered: dict[str, str] = {}
+        for addr, label in bk300_devices.items():
+            ordered[addr] = f"⭐ {label}"
+        for addr, label in all_devices.items():
+            if addr not in ordered:
+                ordered[addr] = label
+
+        # If exactly one BK300 found, show form with it pre-selected
         if len(bk300_devices) == 1 and user_input is None:
             selected_address = next(iter(bk300_devices))
             _LOGGER.info(
@@ -342,14 +350,6 @@ class BK300ConfigFlow(ConfigFlow, domain=DOMAIN):
                     "info": "No Bluetooth devices detected. Ensure your BK300 is powered on and within range.",
                 },
             )
-
-        # Prepare device list: BK300s first (marked with ⭐), then others
-        ordered: dict[str, str] = {}
-        for addr, label in bk300_devices.items():
-            ordered[addr] = f"⭐ {label}"
-        for addr, label in all_devices.items():
-            if addr not in ordered:
-                ordered[addr] = label
 
         # Show device selection form
         description = "Multiple Bluetooth devices found."
