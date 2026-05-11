@@ -9,13 +9,13 @@
           "poll_interval": "Poll Interval (minutes)"
         },
         "data_description": {
-          "address": "Devices identified as BK300 are marked with ⭐. If your device isn't listed, ensure it's powered on and in range.",
+          "address": "Devices identified as BK300 are marked with ⭐. Select the device you want to configure.",
           "poll_interval": "How often to connect and read voltage (1-60 minutes)"
         }
       },
       "bluetooth_confirm": {
         "title": "Found BK300 Battery Monitor",
-        "description": "Do you want to set up the BK300 at {address}?",
+        "description": "A BK300 was detected at {address}. Click submit to set it up.",
         "data": {
           "poll_interval": "Poll Interval (minutes)"
         },
