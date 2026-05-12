@@ -279,42 +279,21 @@ class BK300ConfigFlow(ConfigFlow, domain=DOMAIN):
             len(all_devices),
         )
 
-        # Build ordered device list for form (BK300s first with ⭐, then others)
-        ordered: dict[str, str] = {}
-        for addr, label in bk300_devices.items():
-            ordered[addr] = f"⭐ {label}"
-        for addr, label in all_devices.items():
-            if addr not in ordered:
-                ordered[addr] = label
-
-        # If exactly one BK300 found, show form with it pre-selected
+        # If exactly one BK300 found, auto-confirm it
         if len(bk300_devices) == 1 and user_input is None:
-            selected_address = next(iter(bk300_devices))
-            _LOGGER.info(
-                "Exactly one BK300 found, presenting setup form for: %s",
-                selected_address,
-            )
-
-            return self.async_show_form(
-                step_id="user",
-                data_schema=vol.Schema(
-                    {
-                        vol.Required(CONF_ADDRESS, default=selected_address): vol.In(
-                            ordered
-                        ),
-                        vol.Optional(
-                            CONF_POLL_INTERVAL, default=DEFAULT_POLL_INTERVAL
-                        ): vol.All(
-                            vol.Coerce(int),
-                            vol.Range(
-                                min=MIN_POLL_INTERVAL, max=MAX_POLL_INTERVAL
-                            ),
-                        ),
-                    }
-                ),
-                errors=errors,
-                description_placeholders={
-                    "info": "A BK300 device was detected. Select it and submit to complete setup.",
+            auto_address = next(iter(bk300_devices))
+            auto_name = bk300_devices[auto_address]
+            _LOGGER.info("Exactly one BK300 found, auto-selecting: %s", auto_address)
+            
+            await self.async_set_unique_id(auto_address)
+            self._abort_if_unique_id_configured()
+            
+            # Auto-create entry for the single found device
+            return self.async_create_entry(
+                title=auto_name,
+                data={
+                    CONF_ADDRESS: auto_address,
+                    CONF_POLL_INTERVAL: DEFAULT_POLL_INTERVAL,
                 },
             )
 
@@ -350,6 +329,14 @@ class BK300ConfigFlow(ConfigFlow, domain=DOMAIN):
                     "info": "No Bluetooth devices detected. Ensure your BK300 is powered on and within range.",
                 },
             )
+
+        # Prepare device list: BK300s first (marked with ⭐), then others
+        ordered: dict[str, str] = {}
+        for addr, label in bk300_devices.items():
+            ordered[addr] = f"⭐ {label}"
+        for addr, label in all_devices.items():
+            if addr not in ordered:
+                ordered[addr] = label
 
         # Show device selection form
         description = "Multiple Bluetooth devices found."
