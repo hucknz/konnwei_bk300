@@ -6,9 +6,9 @@ import logging
 from datetime import timedelta
 from dataclasses import dataclass
 
+from bleak import BleakClient
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak.exc import BleakError
-from bleak_retry_connector import BleakClientWithServiceCache, establish_connection
 
 from homeassistant.components.bluetooth import async_scanner_devices_by_address
 from homeassistant.core import HomeAssistant
@@ -188,13 +188,10 @@ class BK300Coordinator(DataUpdateCoordinator[BK300Data]):
         self._pending_reading = None
 
         try:
-            client = await establish_connection(
-                BleakClientWithServiceCache,
-                scanner_device.device,
-                self.address,
-                max_attempts=3,
-            ) 
-            async with client:
+            async with BleakClient(
+                scanner_device.ble_device,
+                timeout=CONNECT_TIMEOUT,
+            ) as client:
                 _LOGGER.debug(
                     "Connected to BK300 %s via %s",
                     self.address,
