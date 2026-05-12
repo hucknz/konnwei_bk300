@@ -9,6 +9,7 @@ A custom HACS integration for the Konnwei BK300 Bluetooth battery monitor.
 - Configurable polling interval (default 10 minutes, range 1–60 minutes)
 - Voltage sensor with persisted last-known value (survives HA restarts)
 - Battery percentage and charging state as extra attributes
+- A "Poll Now" button to refresh the device immediately
 
 ## Requirements
 
@@ -55,6 +56,8 @@ Extra attributes on the voltage sensor:
 - `mac_address` — BLE MAC of the device
 - `battery_percent` — Battery percentage (if available)
 - `charging` — Whether the battery is being charged (if available)
+
+The integration also adds a "Poll Now" button on the device page to trigger an immediate refresh.
 
 ## Options
 

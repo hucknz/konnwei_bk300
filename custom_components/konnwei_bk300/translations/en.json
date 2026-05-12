@@ -1,4 +1,11 @@
 {
+  "entity": {
+    "button": {
+      "refresh_now": {
+        "name": "Poll Now"
+      }
+    }
+  },
   "config": {
     "step": {
       "user": {
